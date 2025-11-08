@@ -1,0 +1,65 @@
+name: OpenSSL 3.3 x64 Static Build (MT)
+
+on:
+  push:
+    branches:
+      - openssl-3.3
+  workflow_dispatch:
+
+jobs:
+  build-openssl-static-x64:
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout OpenSSL 3.3 Branch
+      uses: actions/checkout@v4
+      with:
+        # Clone the 'openssl-3.3' branch
+        ref: openssl-3.3
+
+    - name: Install NASM and Perl
+      run: |
+        choco install nasm
+        choco install strawberryperl
+      shell: powershell
+
+    - name: Configure MSVC Environment (x64)
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64
+      
+    - name: Configure and Build OpenSSL (Static x64 /MT)
+      shell: bash
+      run: |
+        # VC-WIN64A: 64-bit native build
+        # no-shared: Build only static libraries (.lib)
+        # no-dso: Disable Dynamic Shared Objects (DSO) for minimal dependencies
+        # /MT: Use static Multi-threaded C Runtime Library
+        perl Configure \
+          VC-WIN64A \
+          no-shared \
+          no-dso \
+          no-makedepend \
+          --prefix=/usr/local/ssl/x64-static-mt \
+          -D_MT \
+          /MT
+        
+        # Build execution
+        /usr/bin/nmake
+        
+        # Installation
+        /usr/bin/nmake install
+
+    - name: Archive Artifacts
+      # Archive the installed lib (.lib) and include (.h) folders
+      run: |
+        $installDir = "/usr/local/ssl/x64-static-mt"
+        Compress-Archive -Path "$installDir\lib", "$installDir\include" -DestinationPath openssl-x64-static-mt.zip
+      shell: powershell
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: openssl-x64-static-mt-libs
+        path: openssl-x64-static-mt.zip
+        retention-days: 7
